@@ -1,4 +1,19 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * index.php - landing page for auth/saml based SAML 2.0 login
  *
@@ -16,57 +31,52 @@
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
  * @package auth/saml
  */
-global $CFG, $USER, $SESSION;
 
 define('SAML_INTERNAL', 1);
 define('SAML_RETRIES', 3);
 define('SAML_DEBUG', 0);
 
 // Pull in the SimpleSAMLphp Config - you must configure this to point to your
-// SimpleSAMLphp install for SP
+// SimpleSAMLphp install for SP.
 require_once('config.php');
-require_once('../../config.php');
-$wantsurl = isset($SESSION->wantsurl) ? $SESSION->wantsurl : FALSE;
-session_write_close();
 
 if (!file_exists($SIMPLESAMLPHP_LIB . '/lib/_autoload.php')) {
-    // invalid config and lib directory
+    // Invalid config and lib directory.
     session_write_close();
     require_once('../../config.php');
     print_error('invalidconfig', 'auth_saml');
     die();
 }
-// now boot strap SimpleSAMLPHP and get everything that we could
-// possibly need data wise
+// Now boot strap SimpleSAMLPHP and get everything that we could
+// possibly need data wise.
 require_once($SIMPLESAMLPHP_LIB . '/lib/_autoload.php');
 SimpleSAML_Configuration::init($SIMPLESAMLPHP_CONFIG);
 
-// figure out where to send us after the logout
+// Figure out where to send us after the logout.
 if (empty($SIMPLESAMLPHP_LOGOUT_LINK)) {
     if (preg_match('/^(.*?)auth\/saml.*?$/', auth_saml_qualified_me() . auth_saml_me(), $matches)) {
         $SIMPLESAMLPHP_LOGOUT_LINK = $matches[1];
-    }
-    else {
+    } else {
         $SIMPLESAMLPHP_LOGOUT_LINK = auth_saml_qualified_me();
     }
 }
 
-// grab the ssphp instance information
+// Grab the ssphp instance information.
 $saml_config = SimpleSAML_Configuration::getInstance();
 $saml_session = SimpleSAML_Session::getInstance();
 $as = new SimpleSAML_Auth_Simple($SIMPLESAMLPHP_SP);
 $valid_saml_session = $saml_session->isValid($SIMPLESAMLPHP_SP);
 
-// either way we don't want to be SAML controlled at this stage
+// Either way we don't want to be SAML controlled at this stage.
 unset($SESSION->SAMLSessionControlled);
 
 
 session_start();
-// check what kind of request this is
-if(isset($_GET["logout"])) { // only existence check this param
+// Check what kind of request this is.
+if (isset($_GET["logout"])) { // Only existence check this param.
     unset($_SESSION['retries']);
     unset($SESSION->wantsurl);
-    if($valid_saml_session) {
+    if ($valid_saml_session) {
         $as->logout($SIMPLESAMLPHP_LOGOUT_LINK);
     } else {
         @session_write_close();
@@ -74,7 +84,7 @@ if(isset($_GET["logout"])) { // only existence check this param
         @header('Location: '.$SIMPLESAMLPHP_LOGOUT_LINK);
         die;
     }
-    // should never get here
+    // Should never get here.
     exit(0);
 }
 
@@ -101,12 +111,6 @@ if ($_SESSION['retries'] > SAML_RETRIES) {
     die();
 }
 
-// save the jump target - this is checked later that it
-// starts with $CFG->wwwroot, and cleaned
-if (isset($_GET['wantsurl'])) {
-    $SESSION->wantsurl = $_GET['wantsurl'];
-}
-
 // now - are we logged in?
 $return_to = $SIMPLESAMLPHP_RETURN_TO ? $SIMPLESAMLPHP_RETURN_TO : auth_saml_qualified_me().$_SERVER['REQUEST_URI'];
 $error_url = $SIMPLESAMLPHP_ERROR_URL ? $SIMPLESAMLPHP_ERROR_URL : auth_saml_qualified_me().$_SERVER['REQUEST_URI'].'error.php';
@@ -118,15 +122,14 @@ $saml_attributes = $as->getAttributes();
 // if we get here, then everything is OK - shutdown the ssphp
 // side of things, and continue with Moodle
 unset($_SESSION['retries']);
-unset($SESSION->wantsurl);
 session_write_close();
 
 // do the normal Moodle bootstraping so we have access to all config and the DB
 require_once('../../config.php');
-//session_get_instance();
-session_start();
-$SESSION = &$_SESSION['SESSION'];
-$USER    = &$_SESSION['USER'];
+
+if (isset($_GET['wantsurl'])) {
+    $SESSION->wantsurl = $_GET['wantsurl'];
+}
 
 // Check plugin is active
 if (!is_enabled_auth('saml')) {
@@ -154,12 +157,10 @@ $GLOBALS['saml_login'] = TRUE;
 $GLOBALS['saml_login_attributes'] = $saml_attributes;
 
 // check user name attribute actually passed
-if(!isset($saml_attributes[$pluginconfig->username])) {
+if (!isset($saml_attributes[$pluginconfig->username])) {
     error_log('auth_saml: auth failed due to missing username saml attribute: '.$pluginconfig->username);
-    session_write_close();
     $USER = new object();
     $USER->id = 0;
-    require_once('../../config.php');
     print_error(get_string("auth_saml_username_error", "auth_saml"));
 }
 
@@ -167,10 +168,8 @@ if(!isset($saml_attributes[$pluginconfig->username])) {
 $username = strtolower($saml_attributes[$pluginconfig->username][0]);
 if ($username != clean_param($username, PARAM_TEXT)) {
     error_log('auth_saml: auth failed due to illegal characters in username: '.$username);
-    session_write_close();
     $USER = new object();
     $USER->id = 0;
-    require_once('../../config.php');
     print_error('pluginauthfailedusername', 'auth_saml', '', clean_param($saml_attributes[$pluginconfig->username][0], PARAM_TEXT));
 }
 
@@ -179,10 +178,8 @@ if ($username != clean_param($username, PARAM_TEXT)) {
 $user_data =  get_complete_user_data($pluginconfig->userfield, $username);
 if (isset($pluginconfig->createusers)) {
     if (!$pluginconfig->createusers && ! $user_data) {
-        session_write_close();
         $USER = new object();
         $USER->id = 0;
-        require_once('../../config.php');
         print_error('pluginauthfailed', 'auth_saml', '', $pluginconfig->userfield.'/'.$saml_attributes[$pluginconfig->username][0]);
     }
 }
@@ -200,10 +197,8 @@ else {
 
 // check that the signin worked
 if ($USER == false) {
-    session_write_close();
     $USER = new object();
     $USER->id = 0;
-    require_once('../../config.php');
     print_error('pluginauthfailed', 'auth_saml', '', $saml_attributes[$pluginconfig->username][0]);
 }
 
@@ -217,7 +212,7 @@ $USER = get_complete_user_data('id', $USER->id);
 
 // update logins and report the login attempt
 //update_login_count();
-add_to_log(SITEID, 'user', 'login', "view.php?id=$USER->id&course=".SITEID, $USER->id, 0, $USER->id);
+add_to_log(SITEID, 'user', 'login', "view.php?id=$USER->id&course=" . SITEID, $USER->id, 0, $USER->id);
 
 // complete the setup of the user
 complete_user_login($USER);
@@ -277,7 +272,7 @@ function auth_saml_authenticate_user_login($username, $password) {
             error_log('[client '.getremoteaddr()."]  $CFG->wwwroot  Suspended Login:  $username  ".$_SERVER['HTTP_USER_AGENT']);
             return false;
         }
-        if ($auth=='nologin' or !is_enabled_auth($auth)) {
+        if ($auth == 'nologin' or !is_enabled_auth($auth)) {
             add_to_log(0, 'login', 'error', 'index.php', $username);
             error_log('[client '.getremoteaddr()."]  $CFG->wwwroot  Disabled Login:  $username  ".$_SERVER['HTTP_USER_AGENT']);
             return false;
@@ -457,13 +452,13 @@ function auth_saml_qualified_me() {
  * @param string $msg
  */
 function auth_saml_err($msg) {
-    // check if we are debugging
+    // Check if we are debugging.
     if (! constant('SAML_DEBUG')) {
         return;
     }
     $logid = '';
 
-    // check if this method is executable
+    // Check if this method is executable.
     if (class_exists('SimpleSAML_Logger') && in_array('getTrackId', get_class_methods('SimpleSAML_Logger'))) {
         $logid = '['.SimpleSAML_Logger::getTrackId().']';
     }
