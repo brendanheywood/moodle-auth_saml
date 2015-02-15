@@ -1,13 +1,28 @@
 <?php
+// This file is part of Moodle - http://moodle.org/
+//
+// Moodle is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// Moodle is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with Moodle.  If not, see <http://www.gnu.org/licenses/>.
+
 /**
  * @author Erlend Strømsvik - Ny Media AS
  * @license http://www.gnu.org/copyleft/gpl.html GNU Public License
  * @package auth/saml
  * @version 1.0
- * 
+ *
  * Authentication Plugin: SAML based SSO Authentication
  *
- * Authentication using SAML2 with SimpleSAMLphp. 
+ * Authentication using SAML2 with SimpleSAMLphp.
  *
  * Based on plugins made by Sergio Gómez (moodle_ssp) and Martin Dougiamas (Shibboleth).
  *
@@ -153,7 +168,18 @@ class auth_plugin_saml extends auth_plugin_base {
     function can_change_password() {
         return false;
     }
-    
+
+    function pre_loginpage_hook() {
+
+        // If Dual login is off then we can safely jump directly to the SAML step
+        // and avoid some redirects to the standard login page
+        if (!isset($pluginconfig->duallogin) || !$pluginconfig->duallogin) {
+            global $SESSION;
+            $samlurl = $CFG->wwwroot.'/auth/saml/index.php?wantsurl=' . urlencode($SESSION->wantsurl);
+            redirect($samlurl);
+        }
+    }
+
     function loginpage_hook() {
         // Prevent username from being shown on login page after logout
         $GLOBALS['CFG']->nolastloggedin = true;
